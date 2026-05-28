@@ -1,8 +1,8 @@
-import os
+﻿import os
 import sqlite3
 from datetime import datetime, timezone
 
-DB_PATH = "/tmp/database.db" if os.environ.get("RAILWAY") else "database.db"
+DB_PATH = "database.db"
 
 
 def get_conn():
@@ -15,20 +15,21 @@ def init_db():
     with get_conn() as conn:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS users (
-                user_id              INTEGER PRIMARY KEY,
-                username             TEXT,
-                full_name            TEXT,
-                phone                TEXT DEFAULT NULL,
-                first_free_used      INTEGER DEFAULT 0,
-                subscription_until   TEXT DEFAULT NULL,
-                is_blocked           INTEGER DEFAULT 0,
-                created_at           TEXT DEFAULT (datetime('now'))
+                user_id            INTEGER PRIMARY KEY,
+                username           TEXT,
+                full_name          TEXT,
+                phone              TEXT DEFAULT NULL,
+                balance            INTEGER DEFAULT 0,
+                first_free_used    INTEGER DEFAULT 0,
+                is_blocked         INTEGER DEFAULT 0,
+                created_at         TEXT DEFAULT (datetime('now'))
             )
         """)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS payments (
                 id              INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id         INTEGER,
+                amount          INTEGER DEFAULT 0,
                 status          TEXT DEFAULT 'pending',
                 receipt_file_id TEXT,
                 created_at      TEXT DEFAULT (datetime('now')),
@@ -42,9 +43,18 @@ def init_db():
                 photo_file_id TEXT
             )
         """)
-        # Eski DB da phone ustuni bo'lmasa qo'shish
+        # Eski DB ga yangi ustunlar qo'shish
+        for col, definition in [
+            ("phone",           "TEXT DEFAULT NULL"),
+            ("balance",         "INTEGER DEFAULT 0"),
+            ("first_free_used", "INTEGER DEFAULT 0"),
+        ]:
+            try:
+                conn.execute(f"ALTER TABLE users ADD COLUMN {col} {definition}")
+            except Exception:
+                pass
         try:
-            conn.execute("ALTER TABLE users ADD COLUMN phone TEXT DEFAULT NULL")
+            conn.execute("ALTER TABLE payments ADD COLUMN amount INTEGER DEFAULT 0")
         except Exception:
             pass
 
@@ -80,49 +90,64 @@ def is_blocked(user_id: int) -> bool:
     return bool(user and user["is_blocked"])
 
 
+def get_balance(user_id: int) -> int:
+    user = get_user(user_id)
+    return int(user["balance"]) if user else 0
+
+
+def add_balance(user_id: int, amount: int):
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE users SET balance = balance + ? WHERE user_id = ?",
+            (amount, user_id)
+        )
+
+
+def deduct_balance(user_id: int, amount: int) -> bool:
+    user = get_user(user_id)
+    if not user or user["balance"] < amount:
+        return False
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE users SET balance = balance - ? WHERE user_id = ?",
+            (amount, user_id)
+        )
+    return True
+
+
 def has_access(user_id: int, username: str = "") -> bool:
-    from config import ADMIN_ID, ADMIN_USERNAMES
+    from config import ADMIN_ID, ADMIN_USERNAMES, COST_PER_IMAGE
     if user_id == ADMIN_ID:
         return True
     if username and username.lower() in ADMIN_USERNAMES:
         return True
     user = get_user(user_id)
-    if not user:
-        return False
-    if user["is_blocked"]:
+    if not user or user["is_blocked"]:
         return False
     if not user["first_free_used"]:
         return True
-    if user["subscription_until"]:
-        until = datetime.fromisoformat(user["subscription_until"])
-        if until.tzinfo is None:
-            until = until.replace(tzinfo=timezone.utc)
-        return datetime.now(timezone.utc) < until
-    return False
+    return int(user["balance"]) >= COST_PER_IMAGE
 
 
 def mark_free_used(user_id: int):
-    with get_conn() as conn:
-        conn.execute("UPDATE users SET first_free_used = 1 WHERE user_id = ?", (user_id,))
-
-
-def grant_subscription(user_id: int, days: int = 2):
-    from datetime import timedelta
-    now = datetime.now(timezone.utc)
+    from config import COST_PER_IMAGE
+    from config import ADMIN_ID
     user = get_user(user_id)
-    if user and user["subscription_until"]:
-        current = datetime.fromisoformat(user["subscription_until"])
-        if current.tzinfo is None:
-            current = current.replace(tzinfo=timezone.utc)
-        base = max(now, current)
+    if not user:
+        return
+    if user["first_free_used"]:
+        # Balansdan ayirish
+        with get_conn() as conn:
+            conn.execute(
+                "UPDATE users SET balance = MAX(0, balance - ?) WHERE user_id = ?",
+                (COST_PER_IMAGE, user_id)
+            )
     else:
-        base = now
-    until = (base + timedelta(days=days)).isoformat()
-    with get_conn() as conn:
-        conn.execute(
-            "UPDATE users SET subscription_until = ?, first_free_used = 1 WHERE user_id = ?",
-            (until, user_id)
-        )
+        with get_conn() as conn:
+            conn.execute(
+                "UPDATE users SET first_free_used = 1 WHERE user_id = ?",
+                (user_id,)
+            )
 
 
 def block_user(user_id: int):
@@ -152,14 +177,6 @@ def update_payment(payment_id: int, status: str):
         )
 
 
-def get_pending_payment(user_id: int):
-    with get_conn() as conn:
-        return conn.execute(
-            "SELECT * FROM payments WHERE user_id = ? AND status = 'pending' ORDER BY id DESC LIMIT 1",
-            (user_id,)
-        ).fetchone()
-
-
 def set_state(user_id: int, state: str, photo_file_id: str = None):
     with get_conn() as conn:
         conn.execute("""
@@ -173,7 +190,9 @@ def set_state(user_id: int, state: str, photo_file_id: str = None):
 
 def get_state(user_id: int):
     with get_conn() as conn:
-        row = conn.execute("SELECT * FROM user_states WHERE user_id = ?", (user_id,)).fetchone()
+        row = conn.execute(
+            "SELECT * FROM user_states WHERE user_id = ?", (user_id,)
+        ).fetchone()
         if row:
             return row["state"], row["photo_file_id"]
         return None, None
@@ -187,15 +206,17 @@ def clear_state(user_id: int):
 def get_stats():
     with get_conn() as conn:
         total = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
-        active = conn.execute(
-            "SELECT COUNT(*) FROM users WHERE subscription_until > datetime('now')"
+        with_balance = conn.execute(
+            "SELECT COUNT(*) FROM users WHERE balance > 0"
         ).fetchone()[0]
         today_payments = conn.execute(
             "SELECT COUNT(*) FROM payments WHERE status = 'approved' AND DATE(updated_at) = DATE('now')"
         ).fetchone()[0]
-        return total, active, today_payments
+        return total, with_balance, today_payments
 
 
 def get_all_users():
     with get_conn() as conn:
-        return conn.execute("SELECT * FROM users ORDER BY created_at DESC").fetchall()
+        return conn.execute(
+            "SELECT * FROM users ORDER BY created_at DESC"
+        ).fetchall()

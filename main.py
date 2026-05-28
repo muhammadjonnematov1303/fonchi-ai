@@ -1,12 +1,9 @@
-import sys
+﻿import sys
 import logging
 from telegram import Update
 from telegram.ext import (
-    Application,
-    CommandHandler,
-    MessageHandler,
-    CallbackQueryHandler,
-    filters,
+    Application, CommandHandler, MessageHandler,
+    CallbackQueryHandler, filters,
 )
 
 import database as db
@@ -14,7 +11,10 @@ from config import BOT_TOKEN
 from handlers.start import cmd_start, handle_contact
 from handlers.image_handler import handle_buttons, handle_photo
 from handlers.payment import admin_approve, admin_reject
-from handlers.admin import cmd_admin, cmd_grant, cmd_block, cmd_unblock, cmd_stats, cmd_users, cb_admin
+from handlers.admin import (
+    cmd_admin, cmd_grant, cmd_block, cmd_unblock,
+    cmd_stats, cmd_users, cmd_addbal, cb_admin
+)
 
 if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -22,13 +22,43 @@ if sys.platform == "win32":
 
 logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(message)s",
-    level=logging.WARNING,
-    stream=sys.stdout,
+    level=logging.WARNING, stream=sys.stdout,
 )
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("telegram").setLevel(logging.WARNING)
 logger = logging.getLogger("fonchi")
 logger.setLevel(logging.INFO)
+
+
+async def handle_balance_btn(update: Update, context):
+    user = update.effective_user
+    import database as db2
+    from config import COST_PER_IMAGE
+    balance = db2.get_balance(user.id)
+    free = not db2.get_user(user.id)["first_free_used"]
+    if free:
+        status = "🆓 Sizda <b>1 ta bepul</b> foydalanish bor!"
+    elif balance >= COST_PER_IMAGE:
+        count = balance // COST_PER_IMAGE
+        status = f"✅ Balansingizda <b>{count} ta rasm</b> ishlash mumkin."
+    else:
+        status = "⚠️ Balans yetarli emas. To'lov qiling."
+    await update.message.reply_text(
+        f"💰 <b>Balansingiz: {balance:,} so'm</b>\n\n"
+        f"{status}\n\n"
+        f"🖼 1 rasm narxi: <b>{COST_PER_IMAGE:,} so'm</b>",
+        parse_mode="HTML"
+    )
+
+
+async def handle_all_callbacks(update: Update, context):
+    data = update.callback_query.data
+    if data.startswith("adm_"):
+        await cb_admin(update, context)
+    elif data.startswith("approve_"):
+        await admin_approve(update, context)
+    elif data.startswith("reject_"):
+        await admin_reject(update, context)
 
 
 def main():
@@ -49,33 +79,30 @@ def main():
         .build()
     )
 
-    # Asosiy komandalar
-    app.add_handler(CommandHandler("start", cmd_start))
-    app.add_handler(CommandHandler("admin", cmd_admin))
-    app.add_handler(CommandHandler("grant", cmd_grant))
-    app.add_handler(CommandHandler("block", cmd_block))
+    app.add_handler(CommandHandler("start",   cmd_start))
+    app.add_handler(CommandHandler("admin",   cmd_admin))
+    app.add_handler(CommandHandler("addbal",  cmd_addbal))
+    app.add_handler(CommandHandler("grant",   cmd_grant))
+    app.add_handler(CommandHandler("block",   cmd_block))
     app.add_handler(CommandHandler("unblock", cmd_unblock))
-    app.add_handler(CommandHandler("stats", cmd_stats))
-    app.add_handler(CommandHandler("users", cmd_users))
+    app.add_handler(CommandHandler("stats",   cmd_stats))
+    app.add_handler(CommandHandler("users",   cmd_users))
 
-    # Telefon raqam
     app.add_handler(MessageHandler(filters.CONTACT, handle_contact))
 
-    # Menyu tugmalari
     app.add_handler(MessageHandler(
         filters.TEXT & filters.Regex(r"^(🗑 Fon olib tashlash|🎨 Fon qo'shish)$"),
         handle_buttons
     ))
+    app.add_handler(MessageHandler(
+        filters.TEXT & filters.Regex(r"^💰 Balansim$"),
+        handle_balance_btn
+    ))
 
-    # Rasmlar
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
 
-    # Admin panel tugmalari
-    app.add_handler(CallbackQueryHandler(cb_admin, pattern=r"^admin_(users|stats|grant|block|back)$"))
-
-    # To'lov tasdiqlash tugmalari
-    app.add_handler(CallbackQueryHandler(admin_approve, pattern=r"^approve_\d+_\d+$"))
-    app.add_handler(CallbackQueryHandler(admin_reject, pattern=r"^reject_\d+_\d+$"))
+    # Barcha callback'larni bitta handler orqali
+    app.add_handler(CallbackQueryHandler(handle_all_callbacks))
 
     logger.info("@FonchiAI_bot ishga tushdi!")
     app.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)

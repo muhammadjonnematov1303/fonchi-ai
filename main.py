@@ -72,12 +72,11 @@ def main():
     except Exception as e:
         logger.warning(f"Model yuklanmadi, birinchi so'rovda yuklanadi: {e}")
 
-    app = (
-        Application.builder()
-        .token(BOT_TOKEN)
-        .concurrent_updates(True)
-        .build()
-    )
+    from config import PROXY_URL
+    builder = Application.builder().token(BOT_TOKEN).concurrent_updates(True)
+    if PROXY_URL:
+        builder = builder.proxy(PROXY_URL).get_updates_proxy(PROXY_URL)
+    app = builder.build()
 
     app.add_handler(CommandHandler("start",   cmd_start))
     app.add_handler(CommandHandler("admin",   cmd_admin))

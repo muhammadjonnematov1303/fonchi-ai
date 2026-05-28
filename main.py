@@ -30,25 +30,33 @@ logger = logging.getLogger("fonchi")
 logger.setLevel(logging.INFO)
 
 
-async def handle_balance_btn(update: Update, context):
-    user = update.effective_user
-    import database as db2
+async def handle_all_text(update: Update, context):
+    text = update.message.text
     from config import COST_PER_IMAGE
-    balance = db2.get_balance(user.id)
-    free = not db2.get_user(user.id)["first_free_used"]
-    if free:
-        status = "🆓 Sizda <b>1 ta bepul</b> foydalanish bor!"
-    elif balance >= COST_PER_IMAGE:
-        count = balance // COST_PER_IMAGE
-        status = f"✅ Balansingizda <b>{count} ta rasm</b> ishlash mumkin."
+    from handlers.image_handler import handle_buttons
+
+    if text == "💰 Balansim":
+        user = update.effective_user
+        balance = db.get_balance(user.id)
+        free = not db.get_user(user.id)["first_free_used"]
+        if free:
+            status = "🆓 Sizda <b>1 ta bepul</b> foydalanish bor!"
+        elif balance >= COST_PER_IMAGE:
+            count = balance // COST_PER_IMAGE
+            status = f"✅ Balansingizda <b>{count} ta rasm</b> ishlash mumkin."
+        else:
+            status = "⚠️ Balans yetarli emas. To'lov qiling."
+        await update.message.reply_text(
+            f"💰 <b>Balansingiz: {balance:,} so'm</b>\n\n"
+            f"{status}\n\n"
+            f"🖼 1 rasm narxi: <b>{COST_PER_IMAGE:,} so'm</b>",
+            parse_mode="HTML"
+        )
+    elif text in ("🗑 Fon olib tashlash", "🎨 Fon qo'shish"):
+        await handle_buttons(update, context)
     else:
-        status = "⚠️ Balans yetarli emas. To'lov qiling."
-    await update.message.reply_text(
-        f"💰 <b>Balansingiz: {balance:,} so'm</b>\n\n"
-        f"{status}\n\n"
-        f"🖼 1 rasm narxi: <b>{COST_PER_IMAGE:,} so'm</b>",
-        parse_mode="HTML"
-    )
+        from handlers.start import show_main_menu
+        await show_main_menu(update)
 
 
 async def handle_all_callbacks(update: Update, context):
@@ -88,16 +96,7 @@ def main():
     app.add_handler(CommandHandler("users",   cmd_users))
 
     app.add_handler(MessageHandler(filters.CONTACT, handle_contact))
-
-    app.add_handler(MessageHandler(
-        filters.TEXT & filters.Regex(r"^(🗑 Fon olib tashlash|🎨 Fon qo'shish)$"),
-        handle_buttons
-    ))
-    app.add_handler(MessageHandler(
-        filters.TEXT & filters.Regex(r"^💰 Balansim$"),
-        handle_balance_btn
-    ))
-
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_all_text))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
 
     # Barcha callback'larni bitta handler orqali

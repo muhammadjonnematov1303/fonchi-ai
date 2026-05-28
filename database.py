@@ -76,8 +76,7 @@ def upsert_user(user_id: int, username: str, full_name: str):
 
 
 def is_registered(user_id: int) -> bool:
-    user = get_user(user_id)
-    return bool(user and user["phone"])
+    return get_user(user_id) is not None
 
 
 def save_phone(user_id: int, phone: str):

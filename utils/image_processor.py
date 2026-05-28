@@ -49,14 +49,23 @@ def apply_background(foreground: Image.Image, bg_path: str) -> Image.Image:
     background = Image.open(bg_path).convert("RGBA")
     bg_w, bg_h = background.size
 
+    # Pastki 22% — logolar va text uchun saqlanadi
+    usable_h = int(bg_h * 0.78)
+    padding_x = int(bg_w * 0.05)
+    padding_top = int(bg_h * 0.04)
+
+    max_w = bg_w - padding_x * 2
+    max_h = usable_h - padding_top
+
     fg_w, fg_h = foreground.size
-    scale = min(bg_w / fg_w, bg_h / fg_h)
+    scale = min(max_w / fg_w, max_h / fg_h)
     new_fg_w = int(fg_w * scale)
     new_fg_h = int(fg_h * scale)
     foreground = foreground.resize((new_fg_w, new_fg_h), Image.LANCZOS)
 
+    # Gorizontal: markazda; vertikal: yuqori qismda
     offset_x = (bg_w - new_fg_w) // 2
-    offset_y = (bg_h - new_fg_h) // 2
+    offset_y = padding_top + (max_h - new_fg_h) // 2
 
     result = Image.new("RGBA", (bg_w, bg_h))
     result.paste(background, (0, 0))

@@ -13,8 +13,10 @@ from handlers.image_handler import handle_buttons, handle_photo
 from handlers.payment import admin_approve, admin_reject
 from handlers.admin import (
     cmd_admin, cmd_grant, cmd_block, cmd_unblock,
-    cmd_stats, cmd_users, cmd_addbal, cb_admin
+    cmd_stats, cmd_users, cmd_addbal, cb_admin,
+    cmd_addpromo, cmd_promos, cmd_delpromo
 )
+from handlers.promo import handle_promo_btn, handle_promo_input
 
 if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -35,6 +37,12 @@ async def handle_all_text(update: Update, context):
     from config import COST_PER_IMAGE
     from handlers.image_handler import handle_buttons
 
+    # Promo kod holati
+    state, _ = db.get_state(update.effective_user.id)
+    if state == "waiting_for_promo":
+        await handle_promo_input(update, context)
+        return
+
     if text == "💰 Balansim":
         user = update.effective_user
         balance = db.get_balance(user.id)
@@ -52,6 +60,8 @@ async def handle_all_text(update: Update, context):
             f"🖼 1 rasm narxi: <b>{COST_PER_IMAGE:,} so'm</b>",
             parse_mode="HTML"
         )
+    elif text == "🎁 Promokod":
+        await handle_promo_btn(update, context)
     elif text in ("🗑 Fon olib tashlash", "🎨 Fon qo'shish"):
         await handle_buttons(update, context)
     else:
@@ -88,7 +98,10 @@ def main():
 
     app.add_handler(CommandHandler("start",   cmd_start))
     app.add_handler(CommandHandler("admin",   cmd_admin))
-    app.add_handler(CommandHandler("addbal",  cmd_addbal))
+    app.add_handler(CommandHandler("addbal",   cmd_addbal))
+    app.add_handler(CommandHandler("addpromo", cmd_addpromo))
+    app.add_handler(CommandHandler("promos",   cmd_promos))
+    app.add_handler(CommandHandler("delpromo", cmd_delpromo))
     app.add_handler(CommandHandler("grant",   cmd_grant))
     app.add_handler(CommandHandler("block",   cmd_block))
     app.add_handler(CommandHandler("unblock", cmd_unblock))

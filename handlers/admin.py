@@ -209,6 +209,59 @@ async def cmd_unblock(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"✅ {target_id} blokdan chiqarildi.")
 
 
+async def cmd_addpromo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update.effective_user.id):
+        return
+    args = context.args
+    if len(args) < 2:
+        await update.message.reply_text(
+            "Ishlatish: /addpromo &lt;KOD&gt; &lt;summa&gt; [necha_marta]\n\n"
+            "Misol:\n/addpromo SALE2024 5000 10\n/addpromo VIP 10000"
+        )
+        return
+    try:
+        code = args[0].upper()
+        amount = int(args[1])
+        uses = int(args[2]) if len(args) > 2 else -1
+    except ValueError:
+        await update.message.reply_text("❌ Noto'g'ri format.")
+        return
+    db.create_promo(code, amount, uses)
+    uses_text = f"{uses} marta" if uses > 0 else "Cheksiz"
+    await update.message.reply_text(
+        f"✅ <b>Promokod yaratildi!</b>\n\n"
+        f"🔑 Kod: <code>{code}</code>\n"
+        f"💰 Summa: <b>{amount:,} so'm</b>\n"
+        f"🔄 Foydalanish: <b>{uses_text}</b>",
+        parse_mode="HTML"
+    )
+
+
+async def cmd_promos(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update.effective_user.id):
+        return
+    promos = db.get_all_promos()
+    if not promos:
+        await update.message.reply_text("Hali promokodlar yo'q.")
+        return
+    lines = ["🎁 <b>Promokodlar:</b>\n"]
+    for p in promos:
+        uses = "∞" if p["uses_left"] == -1 else str(p["uses_left"])
+        lines.append(f"<code>{p['code']}</code> — {p['amount']:,} so'm | Qoldi: {uses}")
+    await update.message.reply_text("\n".join(lines), parse_mode="HTML")
+
+
+async def cmd_delpromo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update.effective_user.id):
+        return
+    if not context.args:
+        await update.message.reply_text("Ishlatish: /delpromo &lt;KOD&gt;")
+        return
+    code = context.args[0].upper()
+    db.delete_promo(code)
+    await update.message.reply_text(f"🗑 <code>{code}</code> o'chirildi.", parse_mode="HTML")
+
+
 async def cmd_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return

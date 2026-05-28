@@ -6,7 +6,7 @@ from config import COST_PER_IMAGE
 
 MAIN_MENU = ReplyKeyboardMarkup(
     [["🗑 Fon olib tashlash", "🎨 Fon qo'shish"],
-     ["💰 Balansim"]],
+     ["💰 Balansim", "🎁 Promokod"]],
     resize_keyboard=True
 )
 

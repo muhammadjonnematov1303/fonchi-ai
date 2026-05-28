@@ -43,6 +43,22 @@ def init_db():
                 photo_file_id TEXT
             )
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS promo_codes (
+                code        TEXT PRIMARY KEY,
+                amount      INTEGER NOT NULL,
+                uses_left   INTEGER DEFAULT -1,
+                created_at  TEXT DEFAULT (datetime('now'))
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS promo_uses (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id     INTEGER,
+                code        TEXT,
+                used_at     TEXT DEFAULT (datetime('now'))
+            )
+        """)
         # Eski DB ga yangi ustunlar qo'shish
         for col, definition in [
             ("phone",           "TEXT DEFAULT NULL"),
@@ -219,3 +235,60 @@ def get_all_users():
         return conn.execute(
             "SELECT * FROM users ORDER BY created_at DESC"
         ).fetchall()
+
+
+# --- PROMO KODLAR ---
+
+def create_promo(code: str, amount: int, uses: int = -1):
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO promo_codes (code, amount, uses_left) VALUES (?, ?, ?)",
+            (code.upper(), amount, uses)
+        )
+
+
+def use_promo(user_id: int, code: str) -> tuple[bool, str, int]:
+    """
+    Returns: (success, message, amount)
+    """
+    code = code.upper().strip()
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM promo_codes WHERE code = ?", (code,)
+        ).fetchone()
+        if not row:
+            return False, "❌ Bunday promokod mavjud emas.", 0
+        if row["uses_left"] == 0:
+            return False, "❌ Bu promokoddan foydalanish imkoniyati tugagan.", 0
+        # Foydalanuvchi avval ishlatganmi?
+        used = conn.execute(
+            "SELECT id FROM promo_uses WHERE user_id = ? AND code = ?",
+            (user_id, code)
+        ).fetchone()
+        if used:
+            return False, "❌ Siz bu promokodni allaqachon ishlatgansiz.", 0
+        # Ishlatish
+        conn.execute(
+            "INSERT INTO promo_uses (user_id, code) VALUES (?, ?)", (user_id, code)
+        )
+        if row["uses_left"] > 0:
+            conn.execute(
+                "UPDATE promo_codes SET uses_left = uses_left - 1 WHERE code = ?", (code,)
+            )
+        conn.execute(
+            "UPDATE users SET balance = balance + ? WHERE user_id = ?",
+            (row["amount"], user_id)
+        )
+        return True, f"✅ Promokod qabul qilindi!", row["amount"]
+
+
+def get_all_promos():
+    with get_conn() as conn:
+        return conn.execute(
+            "SELECT * FROM promo_codes ORDER BY created_at DESC"
+        ).fetchall()
+
+
+def delete_promo(code: str):
+    with get_conn() as conn:
+        conn.execute("DELETE FROM promo_codes WHERE code = ?", (code.upper(),))

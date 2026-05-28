@@ -25,17 +25,11 @@ def _prep(input_path: str):
 
 
 def _sharpen_product(img: Image.Image) -> Image.Image:
-    """Mahsulot rasmini professional tiniqlash."""
-    # 1. Mayda tafsilotlar (vida, ip, metallni aniqlash)
-    img = img.filter(ImageFilter.UnsharpMask(radius=0.6, percent=180, threshold=1))
-    # 2. Umumiy keskinlik
-    img = img.filter(ImageFilter.UnsharpMask(radius=1.5, percent=120, threshold=3))
-    # 3. Sharpness
-    img = ImageEnhance.Sharpness(img).enhance(1.8)
-    # 4. Kontrast — qoralarni qoraroq, oqlarni oqroq
-    img = ImageEnhance.Contrast(img).enhance(1.15)
-    # 5. Rang to'yinganlik
-    img = ImageEnhance.Color(img).enhance(1.1)
+    img = img.filter(ImageFilter.UnsharpMask(radius=0.5, percent=220, threshold=1))
+    img = img.filter(ImageFilter.UnsharpMask(radius=1.8, percent=140, threshold=3))
+    img = ImageEnhance.Sharpness(img).enhance(2.0)
+    img = ImageEnhance.Contrast(img).enhance(1.18)
+    img = ImageEnhance.Color(img).enhance(1.12)
     return img
 
 
@@ -59,7 +53,7 @@ def apply_background(foreground: Image.Image, bg_path: str) -> Image.Image:
     max_h = usable_h - padding_top
 
     fg_w, fg_h = foreground.size
-    scale = min(max_w / fg_w, max_h / fg_h) * 1.18
+    scale = min(max_w / fg_w, max_h / fg_h) * 1.35
     new_w, new_h = int(fg_w * scale), int(fg_h * scale)
     foreground = foreground.resize((new_w, new_h), Image.LANCZOS)
 

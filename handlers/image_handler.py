@@ -121,10 +121,9 @@ async def _do_remove_bg(update: Update, context):
         db.mark_free_used(user.id)  # type: ignore
         db.clear_state(user.id)  # type: ignore
         await processing_msg.delete()
-        await update.message.reply_document(  # type: ignore
-            document=png_bytes,
-            filename="fonchi_result.png",
-            caption="✅ <b>Tayyor!</b> Fon olib tashlandi.",
+        await update.message.reply_photo(  # type: ignore
+            photo=png_bytes,
+            caption="✅ <b>Tayyor!</b> Fon oib tashlandi — oq fon.",
             parse_mode="HTML",
             reply_markup=MAIN_MENU
         )

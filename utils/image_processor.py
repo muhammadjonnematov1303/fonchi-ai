@@ -81,17 +81,26 @@ def process_images(person_path: str, bg_path: str, output_path: str):
 
 
 def remove_bg_only(input_path: str) -> io.BytesIO:
-    data, _ = _prep(input_path)
+    data, (orig_w, orig_h) = _prep(input_path)
     result = remove(data, session=get_session())
-    img = Image.open(io.BytesIO(result)).convert("RGBA")
-    r, g, b, a = img.split()
-    a = a.point(lambda p: 0 if p < 128 else 255)
-    img = Image.merge("RGBA", (r, g, b, a))
-    r2, g2, b2, _ = img.split()
-    rgb = _enhance(Image.merge("RGB", (r2, g2, b2)))
-    r3, g3, b3 = rgb.split()
+    fg = Image.open(io.BytesIO(result)).convert("RGBA")
+
+    # Alpha: keskin chegara — xira joylarni olib tashlash
+    r, g, b, a = fg.split()
+    a = a.point(lambda p: 0 if p < 140 else 255)
+    fg = Image.merge("RGBA", (r, g, b, a))
+
+    # Oq fon ustiga joylashtirish
+    white = Image.new("RGB", fg.size, (255, 255, 255))
+    white.paste(fg, mask=fg.split()[3])
+
+    # Tiniqlash
+    white = white.filter(ImageFilter.UnsharpMask(radius=1.2, percent=160, threshold=2))
+    white = ImageEnhance.Sharpness(white).enhance(1.6)
+    white = ImageEnhance.Contrast(white).enhance(1.1)
+
     out = io.BytesIO()
-    Image.merge("RGBA", (r3, g3, b3, a)).save(out, "PNG")
+    white.save(out, "JPEG", quality=97, subsampling=0)
     out.seek(0)
     return out
 

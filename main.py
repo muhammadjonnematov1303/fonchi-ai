@@ -8,6 +8,8 @@ from telegram.ext import (
     Application, CommandHandler, MessageHandler,
     CallbackQueryHandler, filters,
 )
+from telegram.error import TimedOut, NetworkError, RetryAfter
+from telegram.request import HTTPXRequest
 
 import database as db
 from config import BOT_TOKEN, IMAGES_DIR
@@ -100,6 +102,18 @@ async def handle_all_text(update: Update, context):
         await show_main_menu(update)
 
 
+async def error_handler(update: object, context) -> None:
+    err = context.error
+    if isinstance(err, (TimedOut, NetworkError)):
+        logger.warning(f"Tarmoq xatosi (o'tkazib yuborildi): {err}")
+        return
+    if isinstance(err, RetryAfter):
+        logger.warning(f"RetryAfter: {err.retry_after}s kutilmoqda")
+        await asyncio.sleep(err.retry_after)
+        return
+    logger.error(f"Kutilmagan xato: {err}", exc_info=err)
+
+
 async def handle_all_callbacks(update: Update, context):
     data = update.callback_query.data
     if data.startswith("adm_"):
@@ -155,9 +169,16 @@ def main():
         logger.warning(f"Model yuklanmadi, birinchi so'rovda yuklanadi: {e}")
 
     from config import PROXY_URL
+    request = HTTPXRequest(
+        connection_pool_size=8,
+        read_timeout=60,
+        write_timeout=60,
+        connect_timeout=30,
+    )
     builder = (
         Application.builder()
         .token(BOT_TOKEN)
+        .request(request)
         .concurrent_updates(True)
         .post_init(post_init)
     )
@@ -176,6 +197,8 @@ def main():
     app.add_handler(CommandHandler("unblock",  cmd_unblock))
     app.add_handler(CommandHandler("stats",    cmd_stats))
     app.add_handler(CommandHandler("users",    cmd_users))
+
+    app.add_error_handler(error_handler)
 
     app.add_handler(MessageHandler(filters.CONTACT, handle_contact))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_all_text))

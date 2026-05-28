@@ -1,0 +1,15 @@
+.env
+database.db
+images/
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.vercel
+.u2net/
+Thumbs.db
+.DS_Store

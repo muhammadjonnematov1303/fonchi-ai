@@ -1,5 +1,6 @@
 ﻿import os
 import asyncio
+import logging
 from telegram import Update
 from telegram.ext import ContextTypes
 import database as db
@@ -7,6 +8,8 @@ from config import IMAGES_DIR
 from utils.image_processor import process_images, remove_bg_only
 from handlers.payment import send_payment_request
 from handlers.start import MAIN_MENU, show_main_menu
+
+logger = logging.getLogger("fonchi")
 
 # Media group buffer: key -> {file_unique_id: (update, photo)}
 _mg_buffer: dict[str, dict] = {}
@@ -28,8 +31,7 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         db.set_state(user.id, "remove_bg")  # type: ignore
         await update.message.reply_text(  # type: ignore
-            "🗑 <b>Fon olib tashlash</b>\n\n"
-            "📸 Rasmni yuboring — fon olinib, PNG fayl sifatida qaytariladi.",
+            "🗑 <b>Fon olib tashlash</b>\n\n📸 Rasmni yuboring.",
             parse_mode="HTML"
         )
     elif text == "🎨 Fon qo'shish":
@@ -38,8 +40,7 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         db.set_state(user.id, "bg_editor_waiting_bg")  # type: ignore
         await update.message.reply_text(  # type: ignore
-            "🎨 <b>Fon qo'shish</b>\n\n"
-            "1️⃣ Avval <b>orqa fon rasmini</b> yuboring.",
+            "🎨 <b>Fon qo'shish</b>\n\n1️⃣ Avval <b>orqa fon rasmini</b> yuboring.",
             parse_mode="HTML"
         )
 
@@ -86,10 +87,10 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if key not in _mg_scheduled:
                 _mg_scheduled.add(key)
                 asyncio.get_event_loop().create_task(
-                    _process_mg_after_delay(key, context, saved_file_id)
+                    _process_mg_after_delay(key, context, saved_file_id)  # type: ignore
                 )
         else:
-            await _do_bg_editor(update, context, photo, saved_file_id)
+            await _do_bg_editor(update, context, photo, saved_file_id)  # type: ignore
         return
 
     await show_main_menu(update)
@@ -127,9 +128,13 @@ async def _do_remove_bg(update: Update, context):
             parse_mode="HTML",
             reply_markup=MAIN_MENU
         )
-    except Exception:
+    except Exception as e:
+        logger.error(f"remove_bg xatosi: {e}", exc_info=True)
         db.clear_state(user.id)  # type: ignore
-        await processing_msg.edit_text("❌ Xato yuz berdi. Qayta urinib ko'ring.")
+        try:
+            await processing_msg.edit_text(f"❌ Xato: {type(e).__name__}: {e}")
+        except Exception:
+            pass
     finally:
         if os.path.exists(input_path):
             os.remove(input_path)
@@ -157,8 +162,12 @@ async def _do_bg_editor(update: Update, context, photo, saved_file_id: str):
                 caption="✅ <b>Tayyor!</b> Yana rasm yuborishingiz mumkin.",
                 parse_mode="HTML"
             )
-    except Exception:
-        await processing_msg.edit_text("❌ Xato yuz berdi. Qayta urinib ko'ring.")
+    except Exception as e:
+        logger.error(f"bg_editor xatosi: {e}", exc_info=True)
+        try:
+            await processing_msg.edit_text(f"❌ Xato: {type(e).__name__}: {e}")
+        except Exception:
+            pass
     finally:
         for path in [person_path, bg_path, output_path]:
             if os.path.exists(path):

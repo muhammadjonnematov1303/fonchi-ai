@@ -29,22 +29,25 @@ def remove_background(input_path: str) -> Image.Image:
 
 def apply_background(foreground: Image.Image, bg_path: str) -> Image.Image:
     background = Image.open(bg_path).convert("RGBA")
-    bg_w, bg_h = background.size
-
-    # Foreground ni fon ichiga sig'dirish (proporsiya saqlanib)
     fg_w, fg_h = foreground.size
-    scale = min(bg_w / fg_w, bg_h / fg_h)
-    new_fg_w = int(fg_w * scale)
-    new_fg_h = int(fg_h * scale)
-    foreground = foreground.resize((new_fg_w, new_fg_h), Image.LANCZOS)
 
-    # Foreground ni markazga joylashtirish
-    offset_x = (bg_w - new_fg_w) // 2
-    offset_y = (bg_h - new_fg_h) // 2
+    # Background ni foreground o'lchamiga cover qilish (proporsiya saqlanib, crop markazdan)
+    bg_ratio = background.width / background.height
+    fg_ratio = fg_w / fg_h
+    if bg_ratio > fg_ratio:
+        new_h = fg_h
+        new_w = int(new_h * bg_ratio)
+    else:
+        new_w = fg_w
+        new_h = int(new_w / bg_ratio)
+    background = background.resize((new_w, new_h), Image.LANCZOS)
+    left = (new_w - fg_w) // 2
+    top  = (new_h - fg_h) // 2
+    background = background.crop((left, top, left + fg_w, top + fg_h))
 
-    result = Image.new("RGBA", (bg_w, bg_h))
+    result = Image.new("RGBA", (fg_w, fg_h))
     result.paste(background, (0, 0))
-    result.paste(foreground, (offset_x, offset_y), foreground)
+    result.paste(foreground, (0, 0), foreground)
     return result.convert("RGB")
 
 

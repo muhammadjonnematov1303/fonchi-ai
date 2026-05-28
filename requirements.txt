@@ -1,7 +1,6 @@
-python-telegram-bot[socks]==20.7
+﻿python-telegram-bot[socks]==20.7
 rembg[cpu]==2.0.75
 Pillow>=12.1.0
 python-dotenv==1.0.0
-aiofiles==23.2.1
 socksio==1.0.0
 httpx[socks]

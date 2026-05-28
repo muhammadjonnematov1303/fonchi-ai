@@ -45,11 +45,20 @@ def apply_background(foreground: Image.Image, bg_path: str) -> Image.Image:
     max_h = usable_h - padding_top
 
     fg_w, fg_h = foreground.size
-    scale = min(max_w / fg_w, max_h / fg_h)
-    foreground = foreground.resize((int(fg_w * scale), int(fg_h * scale)), Image.LANCZOS)
+    scale = min(max_w / fg_w, max_h / fg_h) * 1.18  # 18% kattaroq
+    new_w, new_h = int(fg_w * scale), int(fg_h * scale)
+    foreground = foreground.resize((new_w, new_h), Image.LANCZOS)
 
-    offset_x = (bg_w - int(fg_w * scale)) // 2
-    offset_y = padding_top + (max_h - int(fg_h * scale)) // 2
+    # Foreground ni tiniqlash
+    r, g, b, a = foreground.split()
+    rgb = Image.merge("RGB", (r, g, b))
+    rgb = rgb.filter(ImageFilter.UnsharpMask(radius=1.0, percent=140, threshold=2))
+    rgb = ImageEnhance.Sharpness(rgb).enhance(1.5)
+    r2, g2, b2 = rgb.split()
+    foreground = Image.merge("RGBA", (r2, g2, b2, a))
+
+    offset_x = (bg_w - new_w) // 2
+    offset_y = padding_top + (max_h - new_h) // 2
 
     canvas = Image.new("RGBA", (bg_w, bg_h))
     canvas.paste(background, (0, 0))

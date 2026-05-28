@@ -114,6 +114,34 @@ async def post_init(app: Application):
     asyncio.get_event_loop().create_task(_cleanup_loop())
     logger.info("Cleanup loop ishga tushdi (har 5 daqiqa).")
 
+    from telegram import BotCommand, BotCommandScopeDefault, BotCommandScopeChat
+    from config import ADMIN_ID
+
+    # Barcha foydalanuvchilar uchun
+    await app.bot.set_my_commands(
+        [BotCommand("start", "Botni ishga tushirish")],
+        scope=BotCommandScopeDefault()
+    )
+
+    # Admin uchun qo'shimcha buyruqlar
+    if ADMIN_ID:
+        await app.bot.set_my_commands(
+            [
+                BotCommand("start",    "Botni ishga tushirish"),
+                BotCommand("admin",    "Admin panel"),
+                BotCommand("addbal",   "Balans qo'shish: /addbal <id> <summa>"),
+                BotCommand("addpromo", "Promokod yaratish: /addpromo <kod> <summa> [son]"),
+                BotCommand("promos",   "Barcha promokodlar"),
+                BotCommand("delpromo", "Promokod o'chirish: /delpromo <kod>"),
+                BotCommand("grant",    "Balans berish: /grant <id> [summa]"),
+                BotCommand("block",    "Bloklash: /block <id>"),
+                BotCommand("unblock",  "Blokdan chiqarish: /unblock <id>"),
+                BotCommand("stats",    "Statistika"),
+                BotCommand("users",    "Foydalanuvchilar ro'yxati"),
+            ],
+            scope=BotCommandScopeChat(chat_id=ADMIN_ID)
+        )
+
 
 def main():
     db.init_db()

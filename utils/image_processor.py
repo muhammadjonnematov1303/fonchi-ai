@@ -9,7 +9,7 @@ _SESSION = None
 def get_session():
     global _SESSION
     if _SESSION is None:
-        _SESSION = new_session("u2net")
+        _SESSION = new_session("birefnet-general")
     return _SESSION
 
 

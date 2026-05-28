@@ -34,10 +34,13 @@ logger.setLevel(logging.INFO)
 def main():
     db.init_db()
 
-    logger.info("AI modeli yuklanmoqda...")
-    from utils.image_processor import preload_model
-    preload_model()
-    logger.info("Model tayyor. Bot ishga tushmoqda...")
+    try:
+        logger.info("AI modeli yuklanmoqda...")
+        from utils.image_processor import preload_model
+        preload_model()
+        logger.info("Model tayyor!")
+    except Exception as e:
+        logger.warning(f"Model yuklanmadi, birinchi so'rovda yuklanadi: {e}")
 
     app = (
         Application.builder()

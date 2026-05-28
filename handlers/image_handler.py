@@ -79,7 +79,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         photo = update.message.photo[-1]  # type: ignore
         mg_id = update.message.media_group_id  # type: ignore
         if mg_id:
-            key = f"{user.id}_{mg_id}"
+            key = f"{user.id}_{mg_id}"  # type: ignore
             if key not in _mg_buffer:
                 _mg_buffer[key] = {}
             _mg_buffer[key][photo.file_unique_id] = (update, photo)
@@ -110,8 +110,8 @@ async def _do_remove_bg(update: Update, context):
     user = update.effective_user
     photo = update.message.photo[-1]  # type: ignore
     processing_msg = await update.message.reply_text("⚡ <b>Ishlanmoqda...</b>", parse_mode="HTML")  # type: ignore
-    uid = photo.file_id[:10]
-    input_path = os.path.join(IMAGES_DIR, f"{user.id}_{uid}_input.jpg")
+    uid = photo.file_unique_id
+    input_path = os.path.join(IMAGES_DIR, f"{user.id}_{uid}_input.jpg")  # type: ignore
     try:
         file = await context.bot.get_file(photo.file_id)
         await file.download_to_drive(input_path)
@@ -138,10 +138,10 @@ async def _do_remove_bg(update: Update, context):
 async def _do_bg_editor(update: Update, context, photo, saved_file_id: str):
     user = update.effective_user
     processing_msg = await update.message.reply_text("⚡ <b>Ishlanmoqda...</b>", parse_mode="HTML")  # type: ignore
-    uid = photo.file_id[:10]
-    person_path = os.path.join(IMAGES_DIR, f"{user.id}_{uid}_person.jpg")
-    bg_path = os.path.join(IMAGES_DIR, f"{user.id}_{uid}_bg.jpg")
-    output_path = os.path.join(IMAGES_DIR, f"{user.id}_{uid}_result.jpg")
+    uid = photo.file_unique_id
+    person_path = os.path.join(IMAGES_DIR, f"{user.id}_{uid}_person.jpg")  # type: ignore
+    bg_path = os.path.join(IMAGES_DIR, f"{user.id}_{uid}_bg.jpg")  # type: ignore
+    output_path = os.path.join(IMAGES_DIR, f"{user.id}_{uid}_result.jpg")  # type: ignore
     try:
         person_file = await context.bot.get_file(photo.file_id)
         bg_file = await context.bot.get_file(saved_file_id)

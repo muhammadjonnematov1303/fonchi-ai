@@ -14,7 +14,7 @@ from config import BOT_TOKEN
 from handlers.start import cmd_start, handle_contact
 from handlers.image_handler import handle_buttons, handle_photo
 from handlers.payment import admin_approve, admin_reject
-from handlers.admin import cmd_admin, cmd_grant, cmd_block, cmd_unblock, cmd_stats, cmd_users
+from handlers.admin import cmd_admin, cmd_grant, cmd_block, cmd_unblock, cmd_stats, cmd_users, cb_admin
 
 if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -67,7 +67,10 @@ def main():
     # Rasmlar
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
 
-    # Admin to'lov tugmalari
+    # Admin panel tugmalari
+    app.add_handler(CallbackQueryHandler(cb_admin, pattern=r"^admin_(users|stats|grant|block|back)$"))
+
+    # To'lov tasdiqlash tugmalari
     app.add_handler(CallbackQueryHandler(admin_approve, pattern=r"^approve_\d+_\d+$"))
     app.add_handler(CallbackQueryHandler(admin_reject, pattern=r"^reject_\d+_\d+$"))
 

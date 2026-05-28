@@ -104,6 +104,88 @@ async def cmd_unblock(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"✅ {target_id} blokdan chiqarildi.")
 
 
+async def cb_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    if not is_admin(query.from_user.id):
+        return
+
+    data = query.data
+
+    if data == "admin_stats":
+        total, active, today_payments = db.get_stats()
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+        text = (
+            "📊 <b>Statistika</b>\n\n"
+            f"🕐 Vaqt: {now}\n\n"
+            f"👥 Jami userlar: <b>{total}</b>\n"
+            f"✅ Aktiv obunalar: <b>{active}</b>\n"
+            f"💰 Bugungi to'lovlar: <b>{today_payments}</b>"
+        )
+        await query.edit_message_text(text, parse_mode="HTML")
+
+    elif data == "admin_users":
+        users = db.get_all_users()
+        if not users:
+            await query.edit_message_text("Hali foydalanuvchilar yo'q.")
+            return
+        lines = ["👥 <b>Foydalanuvchilar:</b>\n"]
+        for u in users[:20]:
+            status = "✅" if u["subscription_until"] else ("🆓" if not u["first_free_used"] else "⛔")
+            lines.append(f"{status} <code>{u['user_id']}</code> — {u['full_name'] or 'Nomaʼlum'}")
+        if len(users) > 20:
+            lines.append(f"\n... va yana {len(users) - 20} ta")
+        keyboard = [[InlineKeyboardButton("🔙 Orqaga", callback_data="admin_back")]]
+        await query.edit_message_text(
+            "\n".join(lines), parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+
+    elif data == "admin_grant":
+        await query.edit_message_text(
+            "➕ <b>Obuna berish</b>\n\n"
+            "Quyidagi formatda yozing:\n"
+            "<code>/grant &lt;user_id&gt; &lt;kunlar&gt;</code>\n\n"
+            "Misol: <code>/grant 123456789 2</code>",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(
+                [[InlineKeyboardButton("🔙 Orqaga", callback_data="admin_back")]]
+            )
+        )
+
+    elif data == "admin_block":
+        await query.edit_message_text(
+            "🚫 <b>Bloklash / Blokdan chiqarish</b>\n\n"
+            "<code>/block &lt;user_id&gt;</code>\n"
+            "<code>/unblock &lt;user_id&gt;</code>",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(
+                [[InlineKeyboardButton("🔙 Orqaga", callback_data="admin_back")]]
+            )
+        )
+
+    elif data == "admin_back":
+        total, active, today_payments = db.get_stats()
+        text = (
+            "👑 <b>Admin Panel</b>\n\n"
+            "━━━━━━━━━━━━━━━\n"
+            f"👥 Jami foydalanuvchilar: <b>{total}</b>\n"
+            f"✅ Aktiv obunalar: <b>{active}</b>\n"
+            f"💰 Bugungi to'lovlar: <b>{today_payments}</b>\n"
+            "━━━━━━━━━━━━━━━"
+        )
+        keyboard = [
+            [InlineKeyboardButton("👥 Foydalanuvchilar", callback_data="admin_users")],
+            [InlineKeyboardButton("📊 Statistika", callback_data="admin_stats")],
+            [InlineKeyboardButton("➕ Obuna berish", callback_data="admin_grant"),
+             InlineKeyboardButton("🚫 Bloklash", callback_data="admin_block")],
+        ]
+        await query.edit_message_text(
+            text, parse_mode="HTML", reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+
+
 async def cmd_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return

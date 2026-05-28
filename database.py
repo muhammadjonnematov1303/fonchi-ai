@@ -2,7 +2,7 @@ import os
 import sqlite3
 from datetime import datetime, timezone
 
-DB_PATH = "/tmp/database.db" if os.environ.get("VERCEL") else "database.db"
+DB_PATH = "/tmp/database.db" if os.environ.get("RAILWAY") else "database.db"
 
 
 def get_conn():
@@ -15,23 +15,24 @@ def init_db():
     with get_conn() as conn:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS users (
-                user_id       INTEGER PRIMARY KEY,
-                username      TEXT,
-                full_name     TEXT,
-                first_free_used INTEGER DEFAULT 0,
-                subscription_until TEXT DEFAULT NULL,
-                is_blocked    INTEGER DEFAULT 0,
-                created_at    TEXT DEFAULT (datetime('now'))
+                user_id              INTEGER PRIMARY KEY,
+                username             TEXT,
+                full_name            TEXT,
+                phone                TEXT DEFAULT NULL,
+                first_free_used      INTEGER DEFAULT 0,
+                subscription_until   TEXT DEFAULT NULL,
+                is_blocked           INTEGER DEFAULT 0,
+                created_at           TEXT DEFAULT (datetime('now'))
             )
         """)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS payments (
-                id            INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id       INTEGER,
-                status        TEXT DEFAULT 'pending',
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id         INTEGER,
+                status          TEXT DEFAULT 'pending',
                 receipt_file_id TEXT,
-                created_at    TEXT DEFAULT (datetime('now')),
-                updated_at    TEXT DEFAULT (datetime('now'))
+                created_at      TEXT DEFAULT (datetime('now')),
+                updated_at      TEXT DEFAULT (datetime('now'))
             )
         """)
         conn.execute("""
@@ -41,6 +42,11 @@ def init_db():
                 photo_file_id TEXT
             )
         """)
+        # Eski DB da phone ustuni bo'lmasa qo'shish
+        try:
+            conn.execute("ALTER TABLE users ADD COLUMN phone TEXT DEFAULT NULL")
+        except Exception:
+            pass
 
 
 def get_user(user_id: int):
@@ -54,9 +60,19 @@ def upsert_user(user_id: int, username: str, full_name: str):
             INSERT INTO users (user_id, username, full_name)
             VALUES (?, ?, ?)
             ON CONFLICT(user_id) DO UPDATE SET
-                username = excluded.username,
+                username  = excluded.username,
                 full_name = excluded.full_name
         """, (user_id, username, full_name))
+
+
+def is_registered(user_id: int) -> bool:
+    user = get_user(user_id)
+    return bool(user and user["phone"])
+
+
+def save_phone(user_id: int, phone: str):
+    with get_conn() as conn:
+        conn.execute("UPDATE users SET phone = ? WHERE user_id = ?", (phone, user_id))
 
 
 def is_blocked(user_id: int) -> bool:
@@ -66,12 +82,10 @@ def is_blocked(user_id: int) -> bool:
 
 def has_access(user_id: int, username: str = "") -> bool:
     from config import ADMIN_ID, ADMIN_USERNAMES
-    # Admin va whitelist userlar — cheksiz, blok ham ta'sir qilmaydi
     if user_id == ADMIN_ID:
         return True
     if username and username.lower() in ADMIN_USERNAMES:
         return True
-
     user = get_user(user_id)
     if not user:
         return False
@@ -92,7 +106,7 @@ def mark_free_used(user_id: int):
         conn.execute("UPDATE users SET first_free_used = 1 WHERE user_id = ?", (user_id,))
 
 
-def grant_subscription(user_id: int, days: int = 1):
+def grant_subscription(user_id: int, days: int = 2):
     from datetime import timedelta
     now = datetime.now(timezone.utc)
     user = get_user(user_id)
@@ -151,7 +165,9 @@ def set_state(user_id: int, state: str, photo_file_id: str = None):
         conn.execute("""
             INSERT INTO user_states (user_id, state, photo_file_id)
             VALUES (?, ?, ?)
-            ON CONFLICT(user_id) DO UPDATE SET state = excluded.state, photo_file_id = excluded.photo_file_id
+            ON CONFLICT(user_id) DO UPDATE SET
+                state         = excluded.state,
+                photo_file_id = excluded.photo_file_id
         """, (user_id, state, photo_file_id))
 
 

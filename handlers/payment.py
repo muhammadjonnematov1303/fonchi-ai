@@ -97,14 +97,16 @@ async def admin_approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="HTML"
     )
 
+    from handlers.start import MAIN_MENU
     await context.bot.send_message(
         chat_id=target_user_id,
         text=(
             "✅ <b>To'lov tasdiqlandi!</b>\n\n"
             "🎉 Botdan <b>2 kun</b> davomida foydalanishingiz mumkin.\n\n"
-            "📸 Endi odamning rasmini yuboring!"
+            "Quyidagi xizmatlardan birini tanlang 👇"
         ),
-        parse_mode="HTML"
+        parse_mode="HTML",
+        reply_markup=MAIN_MENU
     )
 
 

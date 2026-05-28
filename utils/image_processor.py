@@ -62,5 +62,23 @@ def process_images(person_path: str, bg_path: str, output_path: str):
     result.save(output_path, "JPEG", quality=97, subsampling=0)
 
 
+def remove_bg_only(input_path: str) -> io.BytesIO:
+    with open(input_path, "rb") as f:
+        data = f.read()
+    result = remove(
+        data,
+        session=get_session(),
+        alpha_matting=True,
+        alpha_matting_foreground_threshold=240,
+        alpha_matting_background_threshold=20,
+        alpha_matting_erode_size=3,
+    )
+    img = Image.open(io.BytesIO(result)).convert("RGBA")
+    output = io.BytesIO()
+    img.save(output, "PNG")
+    output.seek(0)
+    return output
+
+
 def preload_model():
     get_session()

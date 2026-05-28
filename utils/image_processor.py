@@ -16,22 +16,24 @@ def get_session():
 def remove_background(input_path: str) -> Image.Image:
     with open(input_path, "rb") as f:
         data = f.read()
-    result = remove(
-        data,
-        session=get_session(),
-        alpha_matting=True,
-        alpha_matting_foreground_threshold=240,
-        alpha_matting_background_threshold=20,
-        alpha_matting_erode_size=3,
-    )
-    return Image.open(io.BytesIO(result)).convert("RGBA")
+    result = remove(data, session=get_session())
+    img = Image.open(io.BytesIO(result)).convert("RGBA")
+    return _clean_alpha(img)
+
+
+def _clean_alpha(img: Image.Image) -> Image.Image:
+    """Alpha kanalini tozalash: shovqin va yarim shaffof piksellarni yo'qotish."""
+    r, g, b, a = img.split()
+    a = a.filter(ImageFilter.MedianFilter(3))
+    a = a.point(lambda p: 0 if p < 100 else (255 if p > 180 else p))
+    a = a.filter(ImageFilter.GaussianBlur(0.5))
+    return Image.merge("RGBA", (r, g, b, a))
 
 
 def apply_background(foreground: Image.Image, bg_path: str) -> Image.Image:
     background = Image.open(bg_path).convert("RGBA")
     bg_w, bg_h = background.size
 
-    # Foreground ni fon o'lchamiga to'liq sig'dirish (proporsiya saqlanib, markazga)
     fg_w, fg_h = foreground.size
     scale = min(bg_w / fg_w, bg_h / fg_h)
     new_fg_w = int(fg_w * scale)
@@ -62,29 +64,11 @@ def process_images(person_path: str, bg_path: str, output_path: str):
 
 
 def remove_bg_only(input_path: str) -> io.BytesIO:
-    src = Image.open(input_path).convert("RGB")
-    orig_w, orig_h = src.size
-    upscaled = src.resize((orig_w * 2, orig_h * 2), Image.LANCZOS)
-    buf = io.BytesIO()
-    upscaled.save(buf, "PNG")
-    buf.seek(0)
-
-    result = remove(
-        buf.read(),
-        session=get_session(),
-        alpha_matting=True,
-        alpha_matting_foreground_threshold=245,
-        alpha_matting_background_threshold=15,
-        alpha_matting_erode_size=5,
-    )
-
+    with open(input_path, "rb") as f:
+        data = f.read()
+    result = remove(data, session=get_session())
     img = Image.open(io.BytesIO(result)).convert("RGBA")
-    r, g, b, a = img.split()
-    a = a.filter(ImageFilter.GaussianBlur(0.8))
-    a = a.point(lambda p: 0 if p < 20 else (255 if p > 235 else p))
-    img = Image.merge("RGBA", (r, g, b, a))
-    img = img.resize((orig_w, orig_h), Image.LANCZOS)
-
+    img = _clean_alpha(img)
     output = io.BytesIO()
     img.save(output, "PNG", optimize=True)
     output.seek(0)

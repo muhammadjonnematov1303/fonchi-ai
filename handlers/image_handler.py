@@ -110,15 +110,16 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # --- FON QO'SHISH: odamning rasm(lar)i ---
     if state == "bg_editor_active":
         photo = update.message.photo[-1]
+        uid = photo.file_id[:10]
         processing_msg = await update.message.reply_text("⚡ <b>Ishlanmoqda...</b>", parse_mode="HTML")
 
-        person_path = os.path.join(IMAGES_DIR, f"{user.id}_{photo.file_id[:8]}_person.jpg")
-        bg_path = os.path.join(IMAGES_DIR, f"{user.id}_bg.jpg")
-        output_path = os.path.join(IMAGES_DIR, f"{user.id}_{photo.file_id[:8]}_result.jpg")
+        person_path = os.path.join(IMAGES_DIR, f"{user.id}_{uid}_person.jpg")
+        bg_path     = os.path.join(IMAGES_DIR, f"{user.id}_{uid}_bg.jpg")
+        output_path = os.path.join(IMAGES_DIR, f"{user.id}_{uid}_result.jpg")
 
         try:
             person_file = await context.bot.get_file(photo.file_id)
-            bg_file = await context.bot.get_file(saved_file_id)
+            bg_file     = await context.bot.get_file(saved_file_id)
             await person_file.download_to_drive(person_path)
             await bg_file.download_to_drive(bg_path)
 
@@ -137,11 +138,9 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             await processing_msg.edit_text("❌ Xato yuz berdi. Qayta urinib ko'ring.")
         finally:
-            for path in [person_path, output_path]:
+            for path in [person_path, bg_path, output_path]:
                 if os.path.exists(path):
                     os.remove(path)
-            if os.path.exists(bg_path):
-                os.remove(bg_path)
         return
 
     # Hech qanday holat yo'q — menyu ko'rsat

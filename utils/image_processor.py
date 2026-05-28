@@ -63,19 +63,36 @@ def process_images(person_path: str, bg_path: str, output_path: str):
 
 
 def remove_bg_only(input_path: str) -> io.BytesIO:
-    with open(input_path, "rb") as f:
-        data = f.read()
+    # Kiruvchi rasmni 2x ga kattalashtirish — sifat oshadi
+    src = Image.open(input_path).convert("RGB")
+    orig_w, orig_h = src.size
+    upscaled = src.resize((orig_w * 2, orig_h * 2), Image.LANCZOS)
+    upscaled_bytes = io.BytesIO()
+    upscaled.save(upscaled_bytes, "PNG")
+    upscaled_bytes.seek(0)
+
     result = remove(
-        data,
+        upscaled_bytes.read(),
         session=get_session(),
         alpha_matting=True,
-        alpha_matting_foreground_threshold=240,
-        alpha_matting_background_threshold=20,
-        alpha_matting_erode_size=3,
+        alpha_matting_foreground_threshold=245,
+        alpha_matting_background_threshold=15,
+        alpha_matting_erode_size=5,
     )
+
     img = Image.open(io.BytesIO(result)).convert("RGBA")
+
+    # Alpha kanalini tozalash: qirralarni yumshatish
+    r, g, b, a = img.split()
+    a = a.filter(ImageFilter.GaussianBlur(0.8))
+    a = a.point(lambda p: 0 if p < 20 else (255 if p > 235 else p))
+    img = Image.merge("RGBA", (r, g, b, a))
+
+    # Asl o'lchamga qaytarish
+    img = img.resize((orig_w, orig_h), Image.LANCZOS)
+
     output = io.BytesIO()
-    img.save(output, "PNG")
+    img.save(output, "PNG", optimize=True)
     output.seek(0)
     return output
 

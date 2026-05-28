@@ -22,12 +22,27 @@ def remove_background(input_path: str) -> Image.Image:
 
 
 def _clean_alpha(img: Image.Image) -> Image.Image:
-    """Alpha kanalini tozalash: shovqin va yarim shaffof piksellarni yo'qotish."""
     r, g, b, a = img.split()
     a = a.filter(ImageFilter.MedianFilter(3))
     a = a.point(lambda p: 0 if p < 100 else (255 if p > 180 else p))
     a = a.filter(ImageFilter.GaussianBlur(0.5))
     return Image.merge("RGBA", (r, g, b, a))
+
+
+def _enhance(img: Image.Image) -> Image.Image:
+    """Rasmni avtomatik tiniqlash va yaxshilash."""
+    # 1. Unsharp mask — qirralarni aniqlashtirish
+    img = img.filter(ImageFilter.UnsharpMask(radius=1.5, percent=160, threshold=2))
+    img = img.filter(ImageFilter.UnsharpMask(radius=0.5, percent=80,  threshold=1))
+    # 2. Keskinlik (sharpness)
+    img = ImageEnhance.Sharpness(img).enhance(1.6)
+    # 3. Kontrast
+    img = ImageEnhance.Contrast(img).enhance(1.12)
+    # 4. Yorqinlik (brightness) — biroz ko'tarish
+    img = ImageEnhance.Brightness(img).enhance(1.04)
+    # 5. Rang to'yinganlik
+    img = ImageEnhance.Color(img).enhance(1.10)
+    return img
 
 
 def apply_background(foreground: Image.Image, bg_path: str) -> Image.Image:
@@ -49,17 +64,10 @@ def apply_background(foreground: Image.Image, bg_path: str) -> Image.Image:
     return result.convert("RGB")
 
 
-def _sharpen(img: Image.Image) -> Image.Image:
-    img = img.filter(ImageFilter.UnsharpMask(radius=1.0, percent=130, threshold=2))
-    img = ImageEnhance.Contrast(img).enhance(1.08)
-    img = ImageEnhance.Color(img).enhance(1.05)
-    return img
-
-
 def process_images(person_path: str, bg_path: str, output_path: str):
     foreground = remove_background(person_path)
     result = apply_background(foreground, bg_path)
-    result = _sharpen(result)
+    result = _enhance(result)
     result.save(output_path, "JPEG", quality=97, subsampling=0)
 
 
@@ -69,6 +77,14 @@ def remove_bg_only(input_path: str) -> io.BytesIO:
     result = remove(data, session=get_session())
     img = Image.open(io.BytesIO(result)).convert("RGBA")
     img = _clean_alpha(img)
+
+    # RGB qismini ham yaxshilaymiz (alpha saqlanib)
+    r, g, b, a = img.split()
+    rgb = Image.merge("RGB", (r, g, b))
+    rgb = _enhance(rgb)
+    r2, g2, b2 = rgb.split()
+    img = Image.merge("RGBA", (r2, g2, b2, a))
+
     output = io.BytesIO()
     img.save(output, "PNG", optimize=True)
     output.seek(0)

@@ -78,7 +78,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         db.set_state(user.id, "bg_editor_active", photo.file_id)
         await update.message.reply_text(
             "✅ <b>Fon saqlandi!</b>\n\n"
-            "2️⃣ Endi odamning rasmini yuboring.\n"
+            "2️⃣ Endi orqa fonini almashtirmoqchi bo'lgan rasmingizni yuboring.\n"
             "Bir vaqtda bir nechta rasm ham yuborishingiz mumkin 📸",
             parse_mode="HTML"
         )

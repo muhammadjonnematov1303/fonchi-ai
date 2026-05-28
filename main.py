@@ -1,4 +1,7 @@
 ﻿import sys
+import gc
+import os
+import asyncio
 import logging
 from telegram import Update
 from telegram.ext import (
@@ -7,9 +10,9 @@ from telegram.ext import (
 )
 
 import database as db
-from config import BOT_TOKEN
+from config import BOT_TOKEN, IMAGES_DIR
 from handlers.start import cmd_start, handle_contact
-from handlers.image_handler import handle_buttons, handle_photo
+from handlers.image_handler import handle_buttons, handle_photo, _mg_buffer, _mg_scheduled
 from handlers.payment import admin_approve, admin_reject
 from handlers.admin import (
     cmd_admin, cmd_grant, cmd_block, cmd_unblock,
@@ -24,7 +27,7 @@ if sys.platform == "win32":
 
 logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    level=logging.INFO, stream=sys.stdout,
+    level=logging.WARNING, stream=sys.stdout,
 )
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("telegram").setLevel(logging.WARNING)
@@ -32,12 +35,40 @@ logger = logging.getLogger("fonchi")
 logger.setLevel(logging.INFO)
 
 
+async def _cleanup_loop():
+    """Har 5 daqiqada: kesh, temp fayllar, xotira tozalash."""
+    while True:
+        await asyncio.sleep(300)  # 5 daqiqa
+        try:
+            # 1. Eskirgan media group bufferlarini tozalash
+            _mg_buffer.clear()
+            _mg_scheduled.clear()
+
+            # 2. Qolgan temp rasmlarni o'chirish
+            if os.path.exists(IMAGES_DIR):
+                for f in os.listdir(IMAGES_DIR):
+                    fpath = os.path.join(IMAGES_DIR, f)
+                    try:
+                        os.remove(fpath)
+                    except Exception:
+                        pass
+
+            # 3. Python garbage collection
+            gc.collect()
+
+            # 4. SQLite optimize
+            with db.get_conn() as conn:
+                conn.execute("PRAGMA optimize")
+
+            logger.info("Kesh tozalandi, xotira bo'shatildi.")
+        except Exception as e:
+            logger.warning(f"Cleanup xatosi: {e}")
+
+
 async def handle_all_text(update: Update, context):
     text = update.message.text
     from config import COST_PER_IMAGE
-    from handlers.image_handler import handle_buttons
 
-    # Promo kod holati
     state, _ = db.get_state(update.effective_user.id)
     if state == "waiting_for_promo":
         await handle_promo_input(update, context)
@@ -79,6 +110,11 @@ async def handle_all_callbacks(update: Update, context):
         await admin_reject(update, context)
 
 
+async def post_init(app: Application):
+    asyncio.get_event_loop().create_task(_cleanup_loop())
+    logger.info("Cleanup loop ishga tushdi (har 5 daqiqa).")
+
+
 def main():
     db.init_db()
 
@@ -91,28 +127,31 @@ def main():
         logger.warning(f"Model yuklanmadi, birinchi so'rovda yuklanadi: {e}")
 
     from config import PROXY_URL
-    builder = Application.builder().token(BOT_TOKEN).concurrent_updates(True)
+    builder = (
+        Application.builder()
+        .token(BOT_TOKEN)
+        .concurrent_updates(True)
+        .post_init(post_init)
+    )
     if PROXY_URL:
         builder = builder.proxy(PROXY_URL).get_updates_proxy(PROXY_URL)
     app = builder.build()
 
-    app.add_handler(CommandHandler("start",   cmd_start))
-    app.add_handler(CommandHandler("admin",   cmd_admin))
+    app.add_handler(CommandHandler("start",    cmd_start))
+    app.add_handler(CommandHandler("admin",    cmd_admin))
     app.add_handler(CommandHandler("addbal",   cmd_addbal))
     app.add_handler(CommandHandler("addpromo", cmd_addpromo))
     app.add_handler(CommandHandler("promos",   cmd_promos))
     app.add_handler(CommandHandler("delpromo", cmd_delpromo))
-    app.add_handler(CommandHandler("grant",   cmd_grant))
-    app.add_handler(CommandHandler("block",   cmd_block))
-    app.add_handler(CommandHandler("unblock", cmd_unblock))
-    app.add_handler(CommandHandler("stats",   cmd_stats))
-    app.add_handler(CommandHandler("users",   cmd_users))
+    app.add_handler(CommandHandler("grant",    cmd_grant))
+    app.add_handler(CommandHandler("block",    cmd_block))
+    app.add_handler(CommandHandler("unblock",  cmd_unblock))
+    app.add_handler(CommandHandler("stats",    cmd_stats))
+    app.add_handler(CommandHandler("users",    cmd_users))
 
     app.add_handler(MessageHandler(filters.CONTACT, handle_contact))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_all_text))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
-
-    # Barcha callback'larni bitta handler orqali
     app.add_handler(CallbackQueryHandler(handle_all_callbacks))
 
     logger.info("@FonchiAI_bot ishga tushdi!")

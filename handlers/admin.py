@@ -4,6 +4,7 @@ import database as db
 from config import ADMIN_ID, COST_PER_IMAGE
 from datetime import datetime, timezone
 import logging
+import os
 
 logger = logging.getLogger("fonchi")
 
@@ -290,3 +291,10 @@ async def cmd_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(users) > 20:
         lines.append(f"\n... va yana {len(users) - 20} ta")
     await update.message.reply_text("\n".join(lines), parse_mode="HTML")
+
+
+async def cmd_stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update.effective_user.id):
+        return
+    await update.message.reply_text("🛑 <b>Bot to'xtatilmoqda...</b>", parse_mode="HTML")
+    os._exit(0)

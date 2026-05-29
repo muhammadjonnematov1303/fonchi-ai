@@ -19,7 +19,7 @@ from handlers.payment import admin_approve, admin_reject
 from handlers.admin import (
     cmd_admin, cmd_grant, cmd_block, cmd_unblock,
     cmd_stats, cmd_users, cmd_addbal, cb_admin,
-    cmd_addpromo, cmd_promos, cmd_delpromo
+    cmd_addpromo, cmd_promos, cmd_delpromo, cmd_stop
 )
 from handlers.promo import handle_promo_btn, handle_promo_input
 
@@ -152,6 +152,7 @@ async def post_init(app: Application):
                 BotCommand("unblock",  "Blokdan chiqarish: /unblock <id>"),
                 BotCommand("stats",    "Statistika"),
                 BotCommand("users",    "Foydalanuvchilar ro'yxati"),
+                BotCommand("stop",     "Botni to'xtatish"),
             ],
             scope=BotCommandScopeChat(chat_id=ADMIN_ID)
         )
@@ -197,6 +198,7 @@ def main():
     app.add_handler(CommandHandler("unblock",  cmd_unblock))
     app.add_handler(CommandHandler("stats",    cmd_stats))
     app.add_handler(CommandHandler("users",    cmd_users))
+    app.add_handler(CommandHandler("stop",     cmd_stop))
 
     app.add_error_handler(error_handler)
 
